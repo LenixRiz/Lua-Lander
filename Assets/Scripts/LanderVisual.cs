@@ -54,7 +54,6 @@ public class LanderVisual : MonoBehaviour
     {
         ParticleSystem.EmissionModule emissionModule = particleSystem.emission;
         emissionModule.enabled = enabled;
-
     }
 
 }

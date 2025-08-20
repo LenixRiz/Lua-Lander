@@ -1,19 +1,37 @@
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SocialPlatforms.Impl;
 
 public class Lander : MonoBehaviour
 {
+    public static Lander Instance { get; private set; }
 
     public event EventHandler OnLeftForce;
     public event EventHandler OnRightForce;
     public event EventHandler OnUpForce;
     public event EventHandler OnBeforeForce;
+    public event EventHandler OnCoinCollected;
+    public event EventHandler<OnLandedEventArgs> OnLanded;
+    public class OnLandedEventArgs : EventArgs
+    {
+        public int onLandedScore;
+    }
+
+    [SerializeField] private float upwardForce = 700f;
+    [SerializeField] private float leftTorque = 100f;
+    [SerializeField] private float rightTorque = -100f;
+    [SerializeField] private float fuelAmount = 10f;
 
     private Rigidbody2D landerRigidbody2D;
 
     private void Awake()
     {
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+
         landerRigidbody2D = GetComponent<Rigidbody2D>();
     }
 
@@ -21,22 +39,32 @@ public class Lander : MonoBehaviour
     {
         OnBeforeForce?.Invoke(this, EventArgs.Empty);
 
+        if (fuelAmount <= 0)
+        {
+            Debug.Log("Fuel empty!");
+            return;
+        }
+
+        if (Keyboard.current.upArrowKey.isPressed ||
+            Keyboard.current.leftArrowKey.isPressed ||
+            Keyboard.current.rightArrowKey.isPressed)
+        {
+            FuelConsumption();
+        }
+
         if (Keyboard.current.upArrowKey.isPressed)
         {
-            float force = 700f;
-            landerRigidbody2D.AddForce(force * Time.deltaTime * transform.up);
+            landerRigidbody2D.AddForce(upwardForce * Time.deltaTime * transform.up);
             OnUpForce?.Invoke(this, EventArgs.Empty);
         }
         if (Keyboard.current.leftArrowKey.isPressed)
         {
-            float turn = +100f;
-            landerRigidbody2D.AddTorque(turn * Time.deltaTime);
+            landerRigidbody2D.AddTorque(leftTorque * Time.deltaTime);
             OnLeftForce?.Invoke(this, EventArgs.Empty);
         }
         if (Keyboard.current.rightArrowKey.isPressed)
         {
-            float turn = -100f;
-            landerRigidbody2D.AddTorque(turn * Time.deltaTime);
+            landerRigidbody2D.AddTorque(rightTorque * Time.deltaTime);
             OnRightForce?.Invoke(this, EventArgs.Empty);
         
         }
@@ -50,7 +78,7 @@ public class Lander : MonoBehaviour
             return;
         }
 
-        float softLandingVelocityMagnitude = 3f;
+        float softLandingVelocityMagnitude = 4f;
         float relativeVelocityMagnitude = collision.relativeVelocity.magnitude;
         if (relativeVelocityMagnitude > softLandingVelocityMagnitude)
         {
@@ -76,12 +104,38 @@ public class Lander : MonoBehaviour
         float maxScoreAmountLandingSpeed = 100;
         float landingSpeedScore = (softLandingVelocityMagnitude - relativeVelocityMagnitude) * maxScoreAmountLandingSpeed;
 
-        int finalScore = Mathf.RoundToInt((landingAngleScore + landingSpeedScore) * landingPad.getScoreMultiplier());
+        int finalScore = Mathf.RoundToInt((landingAngleScore + landingSpeedScore) * landingPad.GetScoreMultiplier());
 
         Debug.Log($"Landing Angle Score: {landingAngleScore}");
         Debug.Log($"Landing Speed Score: {landingSpeedScore}");
         Debug.Log($"Landing Speed Score: {finalScore}");
 
+        OnLanded?.Invoke(this, new OnLandedEventArgs
+        {
+            onLandedScore = finalScore,
+        });
+    }
+
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.gameObject.TryGetComponent(out FuelPickup fuelPickup))
+        {
+            float addFuel = 10f;
+            fuelAmount += addFuel;
+
+            fuelPickup.DestroySelf();
+        }
+
+        if (other.gameObject.TryGetComponent(out CoinPickup coinPickup))
+        {
+            OnCoinCollected?.Invoke(this, EventArgs.Empty);
+            coinPickup.DestroySelf();
+        }
+    }
+
+    private void FuelConsumption()
+    {
+        fuelAmount -= Time.deltaTime;
     }
 
 }
